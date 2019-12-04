@@ -1624,5 +1624,541 @@ create or replace package body gruppo2 as
             modGUI.chiudiTabella;
         modGUI.ChiudiPagina;
     end visualizzaSede;
+                                                               
+    procedure AlimentazioneVeicolo(id_Sessione varchar2, nome varchar2, ruolo varchar2) AS 
+
+    --variabile che conterra l'autorimessa scelta per la visualizzazione
+    codiceAutorimessa autorimesse.idautorimessa%TYPE:=0;
+
+
+    begin
+     modGUI.apriPagina('HoC | Visualizza dati', id_Sessione, nome, ruolo);
+
+    modGUI.aCapo;
+    modGUI.apriIntestazione(3);
+    modGUI.inserisciTesto('VISUALIZZAZIONE ALIMENTAZIONE VEICOLO PIU PRESENTE');
+    modGUI.chiudiIntestazione(3);
+    
+    
+    modGui.apriForm('AlimentazioneVeicolo2');
+    modGui.inserisciInputHidden('id_Sessione',id_sessione);
+    modGui.inserisciInputHidden('nome',nome);
+    modGui.inserisciInputHidden('ruolo',ruolo);
+    
+    
+    modgui.apriSelect('autorimessaScelta', 'Scegli autorimessa di riferimento');
+    --estraggo le autorimesse e le inserisco nella select
+    for scorriCursore in (select autorimesse.idautorimessa from autorimesse)
+    loop
+            codiceAutorimessa:=scorriCursore.idautorimessa;
+                modgui.inserisciOpzioneSelect(TO_CHAR(codiceAutorimessa), TO_CHAR(codiceAutorimessa),true);
+    end loop;
+    --inserisco la possibilita di cercare il veicolo piu presente in tutte le autorimesse
+    modgui.inserisciOpzioneSelect('Tutte','Tutte',true);
+    modgui.chiudiSelect;
+    
+    modGUI.apriDiv;
+    modGui.inserisciBottoneForm('SUBMIT');
+    modGUI.chiudiDiv;
+    modGui.chiudiForm();
+  
+    END AlimentazioneVeicolo;    
+                                                               
+                                                               
+    procedure AlimentazioneVeicolo2(id_Sessione varchar2, nome varchar2, ruolo varchar2, autorimessaScelta varchar2) AS 
+    --variabili usate per controllare i veicoli acceduti in ingressi orari
+   IdveicoloMaxIO number;
+   PresenzeIO number:=0;
+   AlimentazioneIO varchar2(10);
+ 
+   --variabili usate per controllare i veicoli acceduti in ingressi abbonamenti
+   IdveicoloMaxIA number;
+   PresenzeIA number:=0;
+   AlimentazioneIA varchar2(10); 
+    
+   ----variabili globali, conterranno il massimo dei valori ottenuti, quindi stampati 
+   IdveicoloMax number;
+   PresenzeMax number;
+   Alimentazione varchar2(10);
+   
+   BEGIN 
+
+    modGUI.apriPagina('HoC | Visualizza dati', id_Sessione, nome, ruolo);
+    modGUI.aCapo;
+    modGUI.apriIntestazione(3);
+    
+    if(autorimessaScelta='Tutte')then
+        modGUI.inserisciTesto('Visualizzazione alimentazione del veicolo piu presente in tutte le autorimesse ');
+    else
+        modGUI.inserisciTesto('Visualizzazione alimentazione del veicolo piu presente in autorimessa: '||autorimessaScelta);
+    end if;
+    modGUI.chiudiIntestazione(3);
+    
+      
+      if(autorimessaScelta='Tutte')then
+          --ANALIZZO INGRESSI ORARI SU TUTTE LE AUTORIMESSE
+          for scorriCursore in (
+          select  count(ingressiorari.idingressoorario)as conta, veicoli.idveicolo, veicoli.ALIMENTAZIONE
+          from ingressiorari, veicoli, effettuaingressiorari
+          where ingressiorari.idingressoorario=effettuaingressiorari.idingressoorario and
+                effettuaingressiorari.idveicolo=veicoli.idveicolo
+          group by veicoli.idveicolo, veicoli.ALIMENTAZIONE
+          order by veicoli.idveicolo, veicoli.ALIMENTAZIONE
+          )
+          
+           loop
+          
+          if(scorriCursore.conta>PresenzeIO)then
+            IdveicoloMaxIO:=scorriCursore.idveicolo;
+            PresenzeIO:=scorriCursore.conta;
+            AlimentazioneIO:=scorriCursore.alimentazione;
+          end if;
+          end loop;
+          
+          
+          
+          
+          --ANALIZZO INGRESSI ABBONAMENTI SU TUTTE LE AUTORIMESSE
+          for scorriCursore in (
+            select  count(ingressiabbonamenti.idingressoabbonamento)as conta, veicoli.idveicolo, veicoli.ALIMENTAZIONE
+            from ingressiabbonamenti, veicoli, effettuaingressiabbonamenti
+            where ingressiabbonamenti.idingressoabbonamento=effettuaingressiabbonamenti.idingressoabbonamento and
+            effettuaingressiabbonamenti.idveicolo=veicoli.idveicolo 
+            group by veicoli.idveicolo, veicoli.ALIMENTAZIONE
+            order by veicoli.idveicolo, veicoli.ALIMENTAZIONE
+          )
+          
+           loop
+          --CALCOLO VALORI MASSIMI
+          if(scorriCursore.conta>PresenzeIA)then
+            IdveicoloMaxIA:=scorriCursore.idveicolo;
+            PresenzeIA:=scorriCursore.conta;
+            AlimentazioneIA:=scorriCursore.alimentazione;
+          end if;
+          end loop;
+          
+
+      else ----CASO IN CUI VOGLIO SINGOLA AUTORIMESSA
+      
+     --ANALIZZO INGRESSI ORARI SU SINGOLA AUTORIMESSA
+        for scorriCursore in (
+          select  count(ingressiorari.idingressoorario)as conta, veicoli.idveicolo, veicoli.ALIMENTAZIONE
+          from ingressiorari, veicoli, effettuaingressiorari,box,aree,autorimesse
+          where ingressiorari.idingressoorario=effettuaingressiorari.idingressoorario and
+               effettuaingressiorari.idveicolo=veicoli.idveicolo and
+               ingressiorari.IDBOX=box.idbox and
+               box.idarea=aree.idarea and
+               aree.idautorimessa=autorimesse.idautorimessa and
+               autorimesse.idautorimessa=TO_NUMBER(autorimessaScelta)
+         group by veicoli.idveicolo,veicoli.ALIMENTAZIONE
+        )
+          
+           loop
+          --DETERMINO VALORI MASSIMI
+          if(scorriCursore.conta>PresenzeIO)then
+            IdveicoloMaxIO:=scorriCursore.idveicolo;
+            PresenzeIO:=scorriCursore.conta;
+            AlimentazioneIO:=scorriCursore.alimentazione;
+          end if;
+          end loop;
+          
+          
+          
+          --ANALIZZO INGRESSI ABBONAMENTI SU SINGOLA AUTORIMESSA
+          for scorriCursore in (
+            select  count(ingressiabbonamenti.idingressoabbonamento)as conta, veicoli.idveicolo, veicoli.ALIMENTAZIONE
+            from ingressiabbonamenti, veicoli, effettuaingressiabbonamenti, box,aree,autorimesse
+            where   ingressiabbonamenti.idingressoabbonamento=effettuaingressiabbonamenti.idingressoabbonamento and
+                    effettuaingressiabbonamenti.idveicolo=veicoli.idveicolo and
+                    ingressiabbonamenti.IDBOX=box.idbox and
+                    box.idarea=aree.idarea and
+                    aree.idautorimessa=autorimesse.idautorimessa and
+                    autorimesse.idautorimessa=TO_NUMBER(autorimessaScelta)
+            group by veicoli.idveicolo,veicoli.ALIMENTAZIONE
+          )
+          
+           loop
+          --DETERMINO MASSIMI
+          if(scorriCursore.conta>PresenzeIA)then
+            IdveicoloMaxIA:=scorriCursore.idveicolo;
+            PresenzeIA:=scorriCursore.conta;
+            AlimentazioneIA:=scorriCursore.alimentazione;
+          end if;
+          end loop;
+
+
+      end if; --DISCRIMINANTE AUTORIMESSE SCELTE
+      
+      --CONFRONTO VALORI FINALI E CALCOLO MASSIMO
+        if(PresenzeIA>PresenzeIO)then
+            PresenzeMax:=PresenzeIA;
+            IdveicoloMax:=IdveicoloMaxIA;
+            Alimentazione:=AlimentazioneIA;
+        else
+            PresenzeMax:=PresenzeIO;
+            IdveicoloMax:=IdveicoloMaxIO;
+            Alimentazione:=AlimentazioneIO;
+        end if;
+
+    --STAMPO VALORI CALCOLATI
+    modGUI.apriDiv;
+    modGUI.ApriTabella;
+
+    modGUI.ApriRigaTabella;
+    modGUI.intestazioneTabella('Identificativo veicolo');
+    modGUI.intestazioneTabella('Alimentazione');
+    modGUI.intestazioneTabella('Presenze');
+    modGUI.ChiudiRigaTabella;
+    
+    modGUI.ApriRigaTabella;
+    
+    modGUI.ApriElementoTabella;
+    modGUI.ElementoTabella(IdveicoloMax);
+    modGUI.ChiudiElementoTabella;
+    modGUI.ApriElementoTabella;
+    modGUI.ElementoTabella(Alimentazione);
+    modGUI.ChiudiElementoTabella;
+    modGUI.ApriElementoTabella;
+    modGUI.ElementoTabella(PresenzeMax);
+    modGUI.ChiudiElementoTabella;
+      modGui.acapo;
+    modGUI.ChiudiElementoTabella;
+    
+    modGUI.ChiudiRigaTabella;  
+
+    modGUI.ChiudiTabella;
+    modGUI.chiudiDiv;
+
+    modGUI.chiudiPagina;
+
+
+
+    END AlimentazioneVeicolo2;    
+                                                               
+    
+                                                               
+    procedure PERCENTUALIPOSTILILIBERI (id_Sessione varchar2, nome varchar2, ruolo varchar2) is 
+
+    --VARIABILE CONTENENTE AREA SCELTA
+    codiceArea aree.idarea%TYPE;
+
+
+    begin
+    modGUI.apriPagina('HoC | Visualizza dati', id_Sessione, nome, ruolo);
+
+    modGUI.aCapo;
+    modGUI.apriIntestazione(3);
+    modGUI.inserisciTesto('VISUALIZZAZIONE POSTI LIBERI');
+    modGUI.chiudiIntestazione(3);
+    
+    
+    modGui.apriForm('PERCENTUALIPOSTILIBERI2');
+    modGui.inserisciInputHidden('id_Sessione',id_sessione);
+    modGui.inserisciInputHidden('nome',nome);
+    modGui.inserisciInputHidden('ruolo',ruolo);
+    
+    --RADIO1
+    modGUI.apriDiv;
+    modGui.inserisciRadioButton('Per fascia oraria', 'modalita', 'fascia-oraria', true);
+    modGUI.chiudiDiv;
+    
+    modgui.acapo;
+    
+    --RADIO2
+    modGUI.apriDiv;
+    modGui.inserisciRadioButton('Per giorno', 'modalita', 'giorno');
+    modGUI.chiudiDiv;
+    modgui.acapo;
+    
+    --SELECT
+    modgui.apriSelect('areaScelta', 'Scegli area riferimento');
+    --ESTRAGGO AREE DA QUERY E LE METTO NELLA SELECT
+    for scorriCursore in(select aree.idarea from aree)
+    loop
+            codiceArea:=scorriCursore.idarea;
+            modgui.inserisciOpzioneSelect(TO_CHAR(codiceArea), TO_CHAR(codiceArea),true);
+    end loop;
+
+    modgui.chiudiSelect;
+    
+    modGUI.apriDiv;
+    modGui.inserisciBottoneForm('SUBMIT');
+    modGUI.chiudiDiv;
+    modGui.chiudiForm();
+  
+    end PERCENTUALIPOSTILIBERI;   
+              
+                                                               
+                                                               
+   procedure PERCENTUALIPOSTILIBERI2(id_Sessione varchar2, nome varchar2, ruolo varchar2, modalita varchar2, areaScelta varchar2) AS 
+      
+      
+    --DICHIARO VARIABILI PER STAMPARE
+    fasciaOraria fasceorarie.nome%TYPE;
+    giorno fasceorarie.giorno%TYPE;
+    --DICHIARO VARIABILI PER CALCOLARE
+    postiRiservati number;
+    postiTotali number;
+    percentuale number;
+
+    BEGIN
+        --CALCOLO POSTI TOTALI PER L'AREA SCELTA
+        select aree.postitotali into postiTotali from aree where aree.idarea=areaScelta ;
+
+        modGUI.apriPagina('HoC | Visualizza dati', id_Sessione, nome, ruolo);
+
+        modGUI.aCapo;
+        modGUI.apriIntestazione(3);
+        modGUI.inserisciTesto('Visualizzazione posti liberi per '||modalita||', riguardo area: '||areaScelta);
+        modGUI.chiudiIntestazione(3);
+
+        modGUI.apriDiv;
+        modGUI.ApriTabella;
+        modGUI.ApriRigaTabella;
+
+
+        if(modalita='fascia-oraria')then
+          modGUI.intestazioneTabella('Fascia oraria');
+        else
+          modGUI.intestazioneTabella('Giorno');
+        end if;
+        modGUI.intestazioneTabella('Posti liberi');
+        modGUI.ChiudiRigaTabella;
+
+      --CASO IN CUI SCELTA VISUALIZZAZIONE PER FASCIA ORARIA
+      if(modalita='fascia-oraria')then
+
+        --CONTO QUANTI POSTI OCCUPATI CI SONO PER OGNI FASCIA ORARIA
+        for scorriCursoreFasceOrarie in (
+            select distinct fasceorarie.nome, count(ingressiorari.idingressoorario)as postiRiservati, aree.idarea 
+            from ingressiorari,box,aree,areefasceorarie,fasceorarie
+            where ingressiorari.idbox=box.idbox and 
+              box.idarea=aree.idarea and 
+              aree.idarea=areefasceorarie.idarea and
+              areefasceorarie.idfasciaoraria=fasceorarie.idfasciaoraria and
+              aree.idarea=areaScelta 
+              group by aree.idarea, fasceorarie.nome
+              order by fasceorarie.nome,aree.idarea
+        )
+        loop 
+
+        modGUI.ApriRigaTabella;
+
+            fasciaOraria:=scorriCursoreFasceOrarie.nome;
+            modGUI.ApriElementoTabella;
+            modGUI.ElementoTabella(fasciaOraria);
+            modGUI.ChiudiElementoTabella;
+
+            --DOPO AVER CONTATO I POSTI TOTALI PER L'AREA(SOPRA)
+            --OTTENGO POSTI LIBERI
+            postiRiservati:=scorriCursoreFasceOrarie.postiRiservati;
+            --CALCOLO QUANTO SONO IN PERCENTUALE
+            percentuale:=((postiTotali-postiRiservati)*100)/postiTotali;
+            modGUI.ApriElementoTabella;
+
+            if(percentuale<0)then --CASO IN CUI NEL COMPLESSO, TRA MATTINA E SERA, NON CI SONO MAI POSTI LIBERI
+                modGUI.ElementoTabella(0||'%');
+            else
+                modGUI.ElementoTabella(TO_CHAR(percentuale,'fm90.00')||'%');
+            end if;
+            modGUI.ChiudiElementoTabella;
+
+            modGUI.ChiudiRigaTabella;
+
+
+        end loop;
+
+      else --CASO IN CUI SCELTA VISUALIZZAZIONE PER GIORNO 
+        for scorriCursoreGiorni in (
+            select distinct aree.idarea, fasceorarie.giorno , count(ingressiorari.idingressoorario) as postiRiservati  
+            from ingressiorari,box,aree,areefasceorarie,fasceorarie
+            where ingressiorari.idbox=box.idbox and 
+              box.idarea=aree.idarea and 
+              aree.idarea=areefasceorarie.idarea and
+              areefasceorarie.idfasciaoraria=fasceorarie.idfasciaoraria and
+              aree.idarea=areaScelta
+              group by fasceorarie.giorno, aree.idarea 
+              order by fasceorarie.giorno,aree.idarea
+
+        )
+        loop
+            modGUI.ApriRigaTabella;
+
+
+            giorno:=scorriCursoreGiorni.giorno;
+            modGUI.ApriElementoTabella;
+            modGUI.ElementoTabella(giorno);
+            modGUI.ChiudiElementoTabella;
+
+            postiRiservati:=scorriCursoreGiorni.postiRiservati;
+            percentuale:=((postiTotali-postiRiservati)*100)/postiTotali;
+            modGUI.ApriElementoTabella;
+            if(percentuale<0)then
+                modGUI.ElementoTabella(0||'%');
+            else
+                modGUI.ElementoTabella(TO_CHAR(percentuale,'fm90.00')||'%');
+            end if;
+            modGUI.ChiudiElementoTabella;
+
+            modGUI.ChiudiRigaTabella;
+
+             end loop;
+            end if;
+
+
+    END PERCENTUALIPOSTILIBERI2;                                                           
+                                                               
+   procedure MaxTipoVeicolo(id_Sessione varchar2, nome varchar2, ruolo varchar2) is 
+
+    --VARIABILI STAMPATE
+    Lunghezza aree.lunghezzaMax%type;
+    Altezza aree.AltezzaMax%type;
+    Larghezza aree.LarghezzaMax%type;
+    Peso aree.PesoMax%type;
+    Area aree.idarea%type;
+    --VARIABILI PER CALCOLO
+    media number:=0;
+    
+  begin   
+  --CALCOLO LA MEDIA DEI VALORI DI OGNI AREA
+  for scorriCursore in (
+    select (aree.lunghezzaMax+aree.larghezzaMax+aree.altezzaMax+aree.pesoMax)/4 as media,
+        aree.lunghezzaMax, aree.larghezzaMax ,aree.altezzaMax,aree.pesoMax, aree.idarea
+    from aree
+  )
+  -- TROVO LA MAGGIORE
+  loop
+    if(scorriCursore.media>media)then
+        media:=scorriCursore.media;
+        Area:=scorriCursore.idarea;
+        Lunghezza:=scorriCursore.lunghezzaMax;
+        Altezza:=scorriCursore.altezzaMax;
+        Larghezza:=scorriCursore.larghezzaMax;
+        Peso:=scorriCursore.pesoMax;
+    end if;
+  
+  end loop;
+   
+--STAMPO
+     modGUI.apriPagina('HoC | Visualizza dati', id_Sessione, nome, ruolo);
+
+    modGUI.aCapo;
+    modGUI.apriIntestazione(3);
+    modGUI.inserisciTesto('IL MAGGIOR TIPO VEICOLO E OSPITATO DALLA SEGUENTE AREA:');
+    modGUI.chiudiIntestazione(3);
+    modGUI.apriDiv;
+    modGUI.ApriTabella;
+
+    modGUI.ApriRigaTabella;
+    modGUI.intestazioneTabella('Area');
+    modGUI.intestazioneTabella('lunghezzaMax');
+    modGUI.intestazioneTabella('larghezzaMax');
+    modGUI.intestazioneTabella('pesoMax');
+    modGUI.intestazioneTabella('altezzaMax');
+    modGUI.ChiudiRigaTabella;
+    
+        modGUI.ApriRigaTabella;
+    modGUI.ApriElementoTabella;
+    modGUI.ElementoTabella(Area);
+    modGUI.ChiudiElementoTabella;
+    modGUI.ApriElementoTabella;
+    modGUI.ElementoTabella(Lunghezza);
+    modGUI.ElementoTabella(' cm');
+    modGUI.ChiudiElementoTabella;
+    modGUI.ApriElementoTabella;
+    modGUI.ElementoTabella(Altezza);
+    modGUI.ElementoTabella(' cm');
+    modGUI.ChiudiElementoTabella;
+    modGUI.ApriElementoTabella;
+    modGUI.ElementoTabella(Peso);
+    modGUI.ElementoTabella('kg');
+    modGUI.ChiudiElementoTabella;
+    modGUI.ApriElementoTabella;
+    modGUI.ElementoTabella(Larghezza);
+    modGUI.ElementoTabella(' cm');
+    modGUI.ChiudiElementoTabella;
+    modGUI.ChiudiRigaTabella;
+    
+    
+
+    modGUI.ChiudiTabella;
+    modGUI.chiudiDiv;
+
+    modGUI.chiudiPagina;
+
+    end MaxTipoVeicolo;                                                            
+                                                               
+ 
+ 
+ procedure MaggiorPostiRiservati(id_Sessione varchar2, nome varchar2, ruolo varchar2) is 
+--suppongo che l'oprazione sia "con il maggior numero di posti liberi", visto che per ora 
+--non esistono box riservati
+
+--CONTO QUANTI POSTI RISERVATI CI SONO PER OGNI AUTORIMESSA
+cursor MioCursore is select autorimesse.indirizzo,count(box.riservato) as PostiRiservati
+from autorimesse,aree,box
+where autorimesse.idautorimessa=aree.idautorimessa and aree.idarea=box.idarea and box.riservato='F'
+group by autorimesse.indirizzo;
+
+--VARIABILI 
+scorriCursore MioCursore%ROWTYPE;
+nomeSede autorimesse.indirizzo%TYPE;
+posti number:=0;
+
+    
+  begin   
+  
+    open MioCursore;
+    loop
+    fetch MioCursore into scorriCursore;
+    --SCORRO E TROVO AUTORIMESSA CON MAGGIOR POSTI RISERVATI
+    if(scorriCursore.postiriservati>posti) then
+        posti:=scorriCursore.postiriservati;
+        nomeSede:=scorriCursore.indirizzo;
+    end if;
+    exit when MioCursore%NOTFOUND;
+    
+    end loop;
+    close MioCursore;
+    
+--STAMPO
+ modGUI.apriPagina('HoC | Visualizza dati', id_Sessione, nome, ruolo);
+
+    modGUI.aCapo;
+    modGUI.apriIntestazione(3);
+    modGUI.inserisciTesto('AUTORIMESSA CON MAGGIOR NUMERO DI POSTI RISERVATI');
+    modGUI.chiudiIntestazione(3);
+    modGUI.apriDiv;
+    modGUI.ApriTabella;
+
+    modGUI.ApriRigaTabella;
+    modGUI.intestazioneTabella('NomeSede');
+    modGUI.intestazioneTabella('NumPostiRiservati');
+    modGUI.ChiudiRigaTabella;
+    
+        modGUI.ApriRigaTabella;
+        
+    modGUI.ApriElementoTabella;
+    modGUI.ElementoTabella(nomeSede);
+    modGUI.ChiudiElementoTabella;
+
+    modGUI.ApriElementoTabella;
+    modGUI.ElementoTabella(posti);
+    modGUI.ChiudiElementoTabella;
+
+
+    modGUI.ChiudiRigaTabella;
+    
+    
+
+    modGUI.ChiudiTabella;
+    modGUI.chiudiDiv;
+
+    modGUI.chiudiPagina;
+
+
+    END MaggiorPostiRiservati;
+                                                               
+                                                               
 
 end gruppo2;
